@@ -28,6 +28,26 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
+
+    const articlesCollection = client.db("eduHive").collection("articles")
+
+
+    // Create a user
+    app.get('/articles',  async(req, res) => {
+        const cursor = articlesCollection.find();
+        const result = await cursor.toArray();
+        res.send(result);
+    })
+
+    // Create new post article
+    app.post('/articles', async(req, res) => {
+        const article = req.body;
+        const result = await articlesCollection.insertOne(article);
+        res.send(result);
+    })
+
+
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
