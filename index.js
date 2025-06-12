@@ -34,8 +34,9 @@ async function run() {
 
     // Create a user
     app.get('/articles',  async(req, res) => {
-        const cursor = articlesCollection.find();
-        const result = await cursor.toArray();
+        // const cursor = articlesCollection.find();
+        // const result = await cursor.toArray();
+        const result = await articlesCollection.find().toArray();
         res.send(result);
     })
 
