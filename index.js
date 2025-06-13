@@ -1,17 +1,13 @@
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
 const app = express();
-const port = process.env.PORT || 3000;
-const { MongoClient, ServerApiVersion } = require('mongodb');
-require('dotenv').config()
-
+const port = process.env.PORT || 4000;
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+require("dotenv").config();
 
 //middleware
 app.use(cors());
 app.use(express.json());
-
-
-
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.oclat4d.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -21,7 +17,7 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 async function run() {
@@ -29,29 +25,58 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
 
-    const articlesCollection = client.db("eduHive").collection("articles")
-
+    const articlesCollection = client.db("eduHive").collection("articles");
 
     // Create a user
-    app.get('/articles',  async(req, res) => {
-        // const cursor = articlesCollection.find();
-        // const result = await cursor.toArray();
-        const result = await articlesCollection.find().toArray();
-        res.send(result);
-    })
+    app.get("/articles", async (req, res) => {
+      // const cursor = articlesCollection.find();
+      // const result = await cursor.toArray();
+      const result = await articlesCollection.find().toArray();
+      res.send(result);
+    });
+
+    // Get a single article by id
+    app.get("/articles/:id", async (req, res) => {
+      const id = req.params.id;
+      const article = await articlesCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      res.send(article);
+    });
+
+
+    //like an article in the articles collection
+    app.patch("/userLike/:id", async (req, res) => {
+      const id = req.params.id;
+      const { userEmail } = req.body;
+
+      const filter = {
+        _id: new ObjectId(id),
+        likedBy: { $ne: userEmail },
+      };
+
+      const updateDoc = {
+        $inc: { likes: 1 },
+        $addToSet: { likedBy: userEmail }, // ensures only unique likes
+      };
+
+      const result = await articlesCollection.updateOne(filter, updateDoc);
+      console.log(result);
+      res.send(result);
+    });
 
     // Create new post article
-    app.post('/articles', async(req, res) => {
-        const article = req.body;
-        const result = await articlesCollection.insertOne(article);
-        res.send(result);
-    })
-
-
+    app.post("/articles", async (req, res) => {
+      const article = req.body;
+      const result = await articlesCollection.insertOne(article);
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -59,12 +84,10 @@ async function run() {
 }
 run().catch(console.dir);
 
-
-
-app.get('/', (req, res) => {
-    res.send('EduHive API is running');
-})
+app.get("/", (req, res) => {
+  res.send("EduHive API is running");
+});
 
 app.listen(port, () => {
-    console.log(`EduHive API is running on port : ${port}`);
-})
+  console.log(`EduHive API is running on port : ${port}`);
+});
