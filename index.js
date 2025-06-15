@@ -65,10 +65,26 @@ async function run() {
       res.send(result);
     });
 
+    // comment on an article in the articles collection
+    app.post('/comments', async (req, res) => {
+      const comment = req.body;
+      const result = await articlesCollection.insertOne(comment);
+      res.send(result);
+    })
+
+
     // Create new post article
     app.post("/articles", async (req, res) => {
       const article = req.body;
       const result = await articlesCollection.insertOne(article);
+      res.send(result);
+    });
+
+    // Delete an article by id
+    app.delete("/articles/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id)};
+      const result = await articlesCollection.deleteOne(query);
       res.send(result);
     });
 
