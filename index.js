@@ -60,15 +60,30 @@ async function run() {
         $addToSet: { likedBy: userEmail }, // ensures only unique likes
       };
 
+      
+
       const result = await articlesCollection.updateOne(filter, updateDoc);
       console.log(result);
       res.send(result);
     });
 
     // comment on an article in the articles collection
-    app.post('/comments', async (req, res) => {
-      const comment = req.body;
-      const result = await articlesCollection.insertOne(comment);
+    app.patch('/comments/:id', async (req, res) => {
+      const id = req.params.id ;
+      const {comment} = req.body ;
+      const newComment = {
+        text : comment
+      }
+      const query = { _id : new ObjectId(id)}
+      const updateDoc = {
+
+        $push: {
+         comments:  newComment
+        }
+      }
+      // console.log(comment);
+      const result = await articlesCollection.updateOne(query, updateDoc);
+
       res.send(result);
     })
 
@@ -105,7 +120,7 @@ async function run() {
     })
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
