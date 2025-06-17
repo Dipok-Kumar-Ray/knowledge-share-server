@@ -1,6 +1,9 @@
 const express = require("express");
 const cors = require("cors");
+const admin = require("firebase-admin")
+const serviceAccount = require("./firebase/serviceAccountKey.json")
 const app = express();
+const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 4000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
@@ -13,6 +16,11 @@ app.use(express.json());
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.oclat4d.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -21,6 +29,28 @@ const client = new MongoClient(uri, {
   },
 });
 
+
+
+// JWT middleware
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers?.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.user = decoded;
+    next();
+  } catch {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+};
+
+
+
+
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -28,8 +58,15 @@ async function run() {
 
     const articlesCollection = client.db("eduHive").collection("articles");
 
+
+
+    
+
+
+
+
     // Create a user
-    app.get("/articles", async (req, res) => {
+    app.get("/articles", verifyToken, async (req, res) => {
       // const cursor = articlesCollection.find();
       // const result = await cursor.toArray();
       const result = await articlesCollection.find().toArray();
@@ -89,8 +126,19 @@ async function run() {
     })
 
 
+    app.get("/myArticles",  async (req, res) => {
+  const email = req.query.email;
+  // if (email !== req.user.email) {
+  //   return res.status(401).send({ message: "Unauthorized access" });
+  // }
+  // console.log(req.user.email);
+  const myTutorials = await articlesCollection.find({ email }).toArray();
+  res.send(myTutorials);
+});
+
     // Create new post article
-    app.post("/articles", async (req, res) => {
+    app.post("/articles", verifyToken, async (req, res) => {
+      
       const article = req.body;
       const result = await articlesCollection.insertOne(article);
       res.send(result);
