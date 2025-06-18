@@ -1,16 +1,22 @@
 const express = require("express");
 const cors = require("cors");
-const admin = require("firebase-admin")
-const serviceAccount = require("./firebase/serviceAccountKey.json")
+const admin = require("firebase-admin");
+const serviceAccount = require("./firebase/serviceAccountKey.json");
 const app = express();
-const jwt = require('jsonwebtoken');
-const port = process.env.PORT || 4000;
+const jwt = require("jsonwebtoken");
+const port = process.env.PORT || 3000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 
-
 //middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://unique-sable-76ac89.netlify.app",
+    ],
+  })
+);
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.oclat4d.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -29,8 +35,6 @@ const client = new MongoClient(uri, {
   },
 });
 
-
-
 // JWT middleware
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers?.authorization;
@@ -40,16 +44,12 @@ const verifyToken = async (req, res, next) => {
   const token = authHeader.split(" ")[1];
   try {
     const decoded = await admin.auth().verifyIdToken(token);
-    req.user = decoded;
+    req.decoded = decoded;
     next();
   } catch {
     return res.status(401).send({ message: "Unauthorized access" });
   }
 };
-
-
-
-
 
 async function run() {
   try {
@@ -58,15 +58,8 @@ async function run() {
 
     const articlesCollection = client.db("eduHive").collection("articles");
 
-
-
-    
-
-
-
-
     // Create a user
-    app.get("/articles", verifyToken, async (req, res) => {
+    app.get("/articles", async (req, res) => {
       // const cursor = articlesCollection.find();
       // const result = await cursor.toArray();
       const result = await articlesCollection.find().toArray();
@@ -82,11 +75,14 @@ async function run() {
       res.send(article);
     });
 
-
     //like an article in the articles collection
-    app.patch("/userLike/:id", async (req, res) => {
+    app.patch("/userLike/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const { userEmail } = req.body;
+
+      if (req.decoded.email !== userEmail) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
 
       const filter = {
         _id: new ObjectId(id),
@@ -98,47 +94,39 @@ async function run() {
         $addToSet: { likedBy: userEmail }, // ensures only unique likes
       };
 
-      
-
       const result = await articlesCollection.updateOne(filter, updateDoc);
-      console.log(result);
       res.send(result);
     });
 
     // comment on an article in the articles collection
-    app.patch('/comments/:id', async (req, res) => {
-      const id = req.params.id ;
-      const {comment} = req.body ;
+    app.patch("/comments/:id", async (req, res) => {
+      const id = req.params.id;
+      const { comment } = req.body;
       const newComment = {
-        text : comment
-      }
-      const query = { _id : new ObjectId(id)}
+        text: comment,
+      };
+      const query = { _id: new ObjectId(id) };
       const updateDoc = {
-
         $push: {
-         comments:  newComment
-        }
-      }
-      // console.log(comment);
+          comments: newComment,
+        },
+      };
       const result = await articlesCollection.updateOne(query, updateDoc);
 
       res.send(result);
-    })
+    });
 
+    app.get("/myArticles", async (req, res) => {
+      const email = req.query.email;
 
-    app.get("/myArticles",  async (req, res) => {
-  const email = req.query.email;
-  // if (email !== req.user.email) {
-  //   return res.status(401).send({ message: "Unauthorized access" });
-  // }
-  // console.log(req.user.email);
-  const myTutorials = await articlesCollection.find({ email }).toArray();
-  res.send(myTutorials);
-});
+      const myTutorials = await articlesCollection
+        .find({ authorEmail: email })
+        .toArray();
+      res.send(myTutorials);
+    });
 
     // Create new post article
     app.post("/articles", verifyToken, async (req, res) => {
-      
       const article = req.body;
       const result = await articlesCollection.insertOne(article);
       res.send(result);
@@ -147,32 +135,27 @@ async function run() {
     // Delete an article by id
     app.delete("/articles/:id", async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const result = await articlesCollection.deleteOne(query);
       res.send(result);
     });
 
     //update an article by id
-    app.put("/articles/:id", async(req, res) => {
+    app.put("/articles/:id", async (req, res) => {
       const id = req.params.id;
-      const filter = { _id: new ObjectId(id)};
+      const filter = { _id: new ObjectId(id) };
       const updatedArticle = req.body;
       const options = { upsert: true };
       const updateDoc = {
         $set: updatedArticle,
-      }
-      const result = await articlesCollection.updateOne(filter,
-       updateDoc,
-       options
+      };
+      const result = await articlesCollection.updateOne(
+        filter,
+        updateDoc,
+        options
       );
       res.send(result);
-    })
-
-    // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
