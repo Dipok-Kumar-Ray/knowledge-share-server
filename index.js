@@ -35,7 +35,6 @@ const client = new MongoClient(uri, {
   },
 });
 
-
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers?.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
@@ -66,66 +65,69 @@ async function run() {
       res.send(result);
     });
 
+    // Get article (safe fallback for arrays)
+    app.patch("/userLike/:id", verifyToken, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { userEmail } = req.body;
 
-// Get article (safe fallback for arrays)
-app.patch("/userLike/:id", verifyToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { userEmail } = req.body;
+        if (!userEmail)
+          return res.status(400).send({ message: "userEmail required" });
 
-    if (!userEmail) return res.status(400).send({ message: "userEmail required" });
+        if (req.decoded.email !== userEmail) {
+          return res.status(403).send({ message: "Forbidden access" });
+        }
 
-    if (req.decoded.email !== userEmail) {
-      return res.status(403).send({ message: "Forbidden access" });
-    }
+        const article = await articlesCollection.findOne({
+          _id: new ObjectId(id),
+        });
+        if (!article)
+          return res.status(404).send({ message: "Article not found" });
 
-    const article = await articlesCollection.findOne({ _id: new ObjectId(id) });
-    if (!article) return res.status(404).send({ message: "Article not found" });
+        const alreadyLiked = article.likes.includes(userEmail);
+        const update = alreadyLiked
+          ? { $pull: { likes: userEmail } }
+          : { $addToSet: { likes: userEmail } };
 
-    const alreadyLiked = article.likes.includes(userEmail);
-    const update = alreadyLiked
-      ? { $pull: { likes: userEmail } }
-      : { $addToSet: { likes: userEmail } };
+        const result = await articlesCollection.updateOne(
+          { _id: new ObjectId(id) },
+          update
+        );
 
-    const result = await articlesCollection.updateOne({ _id: new ObjectId(id) }, update);
+        // Send back a success response with updated like status (optional)
+        res.send({ modifiedCount: result.modifiedCount, liked: !alreadyLiked });
+      } catch (error) {
+        res.status(500).send({ message: "Server error", error });
+      }
+    });
 
-    // Send back a success response with updated like status (optional)
-    res.send({ modifiedCount: result.modifiedCount, liked: !alreadyLiked });
-  } catch (error) {
-    res.status(500).send({ message: "Server error", error });
-  }
-});
+    // Add comment (strict validation)
+    app.patch("/comments/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { comment } = req.body;
 
+        // Validate comment structure
+        if (
+          !comment ||
+          typeof comment !== "object" ||
+          typeof comment.email !== "string" ||
+          typeof comment.text !== "string" ||
+          typeof comment.displayName !== "string" // 👈 এটাও validate করো
+        ) {
+          return res.status(400).send({ message: "Invalid comment format" });
+        }
 
+        const result = await articlesCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $push: { comments: comment } }
+        );
 
-// Add comment (strict validation)
-app.patch("/comments/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { comment } = req.body;
-
-    // Validate comment structure
-    if (
-      !comment ||
-      typeof comment !== "object" ||
-      typeof comment.email !== "string" ||
-      typeof comment.text !== "string" ||
-      typeof comment.displayName !== "string" // 👈 এটাও validate করো
-    ) {
-      return res.status(400).send({ message: "Invalid comment format" });
-    }
-
-    const result = await articlesCollection.updateOne(
-      { _id: new ObjectId(id) },
-      { $push: { comments: comment } }
-    );
-
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ message: "Server error", error });
-  }
-});
-
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Server error", error });
+      }
+    });
 
     app.get("/myArticles", async (req, res) => {
       const email = req.query.email;
@@ -168,19 +170,26 @@ app.patch("/comments/:id", async (req, res) => {
       res.send(result);
     });
 
+    // GET /articles with optional category & tag filters
+    router.get("/articles", verifyToken, async (req, res) => {
+      try {
+        const { category, tag } = req.query;
 
-        // API to get articles by category
-    app.get('/api/articles', async (req, res) => {
-      const category = req.query.category;
-      if (!category) {
-        return res.status(400).send({ error: 'Category is required' });
+        // Build filter object
+        let filter = {};
+        if (category) {
+          filter.category = category;
+        }
+        if (tag) {
+          filter.tags = tag; // assuming tags is an array field
+        }
+
+        const articles = await Article.find(filter).sort({ date: -1 });
+        res.status(200).json(articles);
+      } catch (error) {
+        res.status(500).json({ error: "Failed to fetch articles" });
       }
-      const query = { category };
-      const articles = await articlesCollection.find(query).toArray();
-      res.send(articles);
     });
-
-
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
