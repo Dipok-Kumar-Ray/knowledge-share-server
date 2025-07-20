@@ -35,7 +35,7 @@ const client = new MongoClient(uri, {
   },
 });
 
-// JWT middleware
+
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers?.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
@@ -66,55 +66,66 @@ async function run() {
       res.send(result);
     });
 
-    // Get a single article by id
-    app.get("/articles/:id", async (req, res) => {
-      const id = req.params.id;
-      const article = await articlesCollection.findOne({
-        _id: new ObjectId(id),
-      });
-      res.send(article);
-    });
 
-    //like an article in the articles collection
-    app.patch("/userLike/:id", verifyToken, async (req, res) => {
-      const id = req.params.id;
-      const { userEmail } = req.body;
+// Get article (safe fallback for arrays)
+app.patch("/userLike/:id", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userEmail } = req.body;
 
-      if (req.decoded.email !== userEmail) {
-        return res.status(403).send({ message: "forbidden access" });
-      }
+    if (!userEmail) return res.status(400).send({ message: "userEmail required" });
 
-      const filter = {
-        _id: new ObjectId(id),
-        likedBy: { $ne: userEmail },
-      };
+    if (req.decoded.email !== userEmail) {
+      return res.status(403).send({ message: "Forbidden access" });
+    }
 
-      const updateDoc = {
-        $inc: { likes: 1 },
-        $addToSet: { likedBy: userEmail }, // ensures only unique likes
-      };
+    const article = await articlesCollection.findOne({ _id: new ObjectId(id) });
+    if (!article) return res.status(404).send({ message: "Article not found" });
 
-      const result = await articlesCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
+    const alreadyLiked = article.likes.includes(userEmail);
+    const update = alreadyLiked
+      ? { $pull: { likes: userEmail } }
+      : { $addToSet: { likes: userEmail } };
 
-    // comment on an article in the articles collection
-    app.patch("/comments/:id", async (req, res) => {
-      const id = req.params.id;
-      const { comment } = req.body;
-      const newComment = {
-        text: comment,
-      };
-      const query = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $push: {
-          comments: newComment,
-        },
-      };
-      const result = await articlesCollection.updateOne(query, updateDoc);
+    const result = await articlesCollection.updateOne({ _id: new ObjectId(id) }, update);
 
-      res.send(result);
-    });
+    // Send back a success response with updated like status (optional)
+    res.send({ modifiedCount: result.modifiedCount, liked: !alreadyLiked });
+  } catch (error) {
+    res.status(500).send({ message: "Server error", error });
+  }
+});
+
+
+
+// Add comment (strict validation)
+app.patch("/comments/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+
+    // Validate comment structure
+    if (
+      !comment ||
+      typeof comment !== "object" ||
+      typeof comment.email !== "string" ||
+      typeof comment.text !== "string" ||
+      typeof comment.displayName !== "string" // 👈 এটাও validate করো
+    ) {
+      return res.status(400).send({ message: "Invalid comment format" });
+    }
+
+    const result = await articlesCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $push: { comments: comment } }
+    );
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Server error", error });
+  }
+});
+
 
     app.get("/myArticles", async (req, res) => {
       const email = req.query.email;
@@ -156,6 +167,20 @@ async function run() {
       );
       res.send(result);
     });
+
+
+        // API to get articles by category
+    app.get('/api/articles', async (req, res) => {
+      const category = req.query.category;
+      if (!category) {
+        return res.status(400).send({ error: 'Category is required' });
+      }
+      const query = { category };
+      const articles = await articlesCollection.find(query).toArray();
+      res.send(articles);
+    });
+
+
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
