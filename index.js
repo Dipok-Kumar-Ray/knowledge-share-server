@@ -33,13 +33,6 @@ app.use(cors({
 
 
 
-// app.use(cors({
-//   origin: ['https://eduhive-auth-87275.web.app'], 
-//   methods: ['GET', 'POST', 'PUT', 'DELETE','PATCH'],
-//   credentials: true
-// }));
-
-
 // Firebase Admin Initialization
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
