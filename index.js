@@ -70,23 +70,6 @@ async function run() {
     const articlesCollection = client.db("eduHive").collection("articles");
 
 
-    // Get single article by ID
-/* app.get("/articles/:id", async (req, res) => {
-  try {
-    const id  = req.params.id;
-    const article = await articlesCollection.findOne({ _id: new ObjectId(id) });
-
-    if (!article) {
-      return res.status(404).send({ message: "Article not found" });
-    }
-
-    res.send(article);
-  } catch (error) {
-    res.status(500).send({ message: "Server error", error });
-  }
-}); */
-// server-side: index.js বা routes file 
-
 
 app.get("/articles/:id", async (req, res) => {
   const { id } = req.params;
@@ -198,33 +181,6 @@ app.get("/articles", async (req, res) => {
   res.send(result);
 });
 
-
-    // //  Add comment
-    // app.patch("/comments/:id", async (req, res) => {
-    //   try {
-    //     const { id } = req.params;
-    //     const { comment } = req.body;
-
-    //     if (
-    //       !comment ||
-    //       typeof comment !== "object" ||
-    //       typeof comment.email !== "string" ||
-    //       typeof comment.text !== "string" ||
-    //       typeof comment.displayName !== "string"
-    //     ) {
-    //       return res.status(400).send({ message: "Invalid comment format" });
-    //     }
-
-    //     const result = await articlesCollection.updateOne(
-    //       { _id: new ObjectId(id) },
-    //       { $push: { comments: comment } }
-    //     );
-
-    //     res.send(result);
-    //   } catch (error) {
-    //     res.status(500).send({ message: "Server error", error });
-    //   }
-    // });
 
   } finally {
     // Optional: client.close() if needed
