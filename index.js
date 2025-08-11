@@ -107,7 +107,7 @@ app.get("/articles", async (req, res) => {
 });
 
 
-    //  Get articles by user
+    //  Get articles by user email
     app.get("/myArticles", async (req, res) => {
       const email = req.query.email;
       const myArticles = await articlesCollection.find({ authorEmail: email }).toArray();
