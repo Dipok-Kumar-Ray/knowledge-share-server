@@ -107,12 +107,25 @@ app.get("/articles", async (req, res) => {
 });
 
 
-    //  Get articles by user email
-    app.get("/myArticles", async (req, res) => {
-      const email = req.query.email;
-      const myArticles = await articlesCollection.find({ authorEmail: email }).toArray();
-      res.send(myArticles);
-    });
+    // //  Get articles by user email
+    // app.get("/myArticles", async (req, res) => {
+    //   const email = req.query.email;
+    //   const myArticles = await articlesCollection.find({ authorEmail: email }).toArray();
+    //   res.send(myArticles);
+    // });
+  app.get("/myArticles", verifyToken, async (req, res) => {
+  const email = req.query.email;
+  if (req.user.email !== email) {
+    return res.status(403).send({ message: "Forbidden" });
+  }
+  const myArticles = await articlesCollection.find({ authorEmail: email }).toArray();
+  res.send(myArticles);
+});
+
+
+
+
+
 
     //  Post new article
     app.post("/articles", verifyToken, async (req, res) => {
