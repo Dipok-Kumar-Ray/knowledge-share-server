@@ -14,6 +14,9 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 
 
+
+
+
 const allowedOrigins = [
   'http://localhost:5173',
   'https://eduhive-auth-87275.web.app'
@@ -107,12 +110,6 @@ app.get("/articles", async (req, res) => {
 });
 
 
-    // //  Get articles by user email
-    // app.get("/myArticles", async (req, res) => {
-    //   const email = req.query.email;
-    //   const myArticles = await articlesCollection.find({ authorEmail: email }).toArray();
-    //   res.send(myArticles);
-    // });
   app.get("/myArticles", verifyToken, async (req, res) => {
   const email = req.query.email;
   if (req.user.email !== email) {
