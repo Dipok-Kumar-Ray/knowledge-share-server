@@ -14,9 +14,6 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 
 
-
-
-
 const allowedOrigins = [
   'http://localhost:5173',
   'https://eduhive-auth-87275.web.app'
