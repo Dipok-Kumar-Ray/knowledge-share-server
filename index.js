@@ -13,25 +13,24 @@ const port = process.env.PORT || 3000;
 // app.use(cors())
 app.use(express.json());
 
-
 const allowedOrigins = [
-  'http://localhost:5173',
-  'https://eduhive-auth-87275.web.app'
+  "http://localhost:5173",
+  "https://eduhive-auth-87275.web.app",
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  credentials: true
-}));
-
-
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true,
+  })
+);
 
 // Firebase Admin Initialization
 admin.initializeApp({
@@ -69,79 +68,78 @@ async function run() {
   try {
     const articlesCollection = client.db("eduHive").collection("articles");
 
+    app.get("/articles/:id", async (req, res) => {
+      const { id } = req.params;
 
+      try {
+        const article = await articlesCollection.findOne({
+          _id: new ObjectId(id),
+        });
 
-app.get("/articles/:id", async (req, res) => {
-  const { id } = req.params;
+        if (!article) {
+          return res.status(404).send({ message: "Article not found" });
+        }
 
-  try {
-    const article = await articlesCollection.findOne({ _id: new ObjectId(id) });
+        res.send(article);
+      } catch (error) {
+        console.error("Error fetching article by ID:", error);
+        res.status(500).send({ message: "Server error" });
+      }
+    });
 
-    if (!article) {
-      return res.status(404).send({ message: "Article not found" });
-    }
+    app.get("/articles", async (req, res) => {
+      const { category, tag } = req.query;
+      const filter = {};
 
-    res.send(article);
-  } catch (error) {
-    console.error("Error fetching article by ID:", error);
-    res.status(500).send({ message: "Server error" });
-  }
-});
+      if (category) filter.category = category;
+      if (tag) filter.tags = { $in: [tag] };
 
+      try {
+        const result = await articlesCollection
+          .find(filter)
+          .sort({ date: -1 })
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Error fetching articles:", error);
+        res.status(500).send({ message: "Server error" });
+      }
+    });
 
+    app.get("/myArticles", verifyToken, async (req, res) => {
+      try {
+        const email = req.query.email;
 
-app.get("/articles", async (req, res) => {
-  const { category, tag } = req.query;
-  const filter = {};
+        if (req.decoded.email !== email) {
+          return res.status(403).send({ message: "Forbidden access" });
+        }
 
-  if (category) filter.category = category;
-  if (tag) filter.tags = { $in: [tag] }; 
+        const myArticles = await articlesCollection
+          .find({ authorEmail: email })
+          .toArray();
+        res.send(myArticles);
+      } catch (error) {
+        console.error("Error fetching myArticles:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
 
-  try {
-    const result = await articlesCollection.find(filter).sort({ date: -1 }).toArray();
-    res.send(result);
-  } catch (error) {
-    console.error("Error fetching articles:", error);
-    res.status(500).send({ message: "Server error" });
-  }
-
-  
-});
-app.get("/myArticles", verifyToken, async (req, res) => {
-  console.log("🔸 Request received for /myArticles");
-  console.log("🔸 Query email:", req.query.email);
-  console.log("🔸 Decoded from token:", req.decoded);
-
-  const email = req.query.email;
-  if (req.decoded.email !== email) {
-    return res.status(403).send({ message: "Forbidden access" });
-  }
-
-  const myArticles = await articlesCollection.find({ authorEmail: email }).toArray();
-  res.send(myArticles);
-});
-
-
-
-
-
-
-  app.get("/myArticles", verifyToken, async (req, res) => {
-  const email = req.query.email;
-  if (req.user.email !== email) {
-    return res.status(403).send({ message: "Forbidden" });
-  }
-  const myArticles = await articlesCollection.find({ authorEmail: email }).toArray();
-  res.send(myArticles);
-});
-
-
-
-    //  Post new article
     app.post("/articles", verifyToken, async (req, res) => {
-      const article = req.body;
-      const result = await articlesCollection.insertOne(article);
-      res.send(result);
+      try {
+        const article = req.body;
+        const decodedEmail = req.decoded.email;
+
+        // Optional: নিরাপত্তার জন্য যাচাই করো
+        if (decodedEmail !== article.authorEmail) {
+          return res.status(403).send({ message: "Forbidden access" });
+        }
+
+        const result = await articlesCollection.insertOne(article);
+        res.send(result);
+      } catch (error) {
+        console.error("Error saving article:", error);
+        res.status(500).send({ message: "Internal Server Error" });
+      }
     });
 
     //  Update article
@@ -159,7 +157,9 @@ app.get("/myArticles", verifyToken, async (req, res) => {
     //  Delete article
     app.delete("/articles/:id", async (req, res) => {
       const id = req.params.id;
-      const result = await articlesCollection.deleteOne({ _id: new ObjectId(id) });
+      const result = await articlesCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
       res.send(result);
     });
 
@@ -169,11 +169,16 @@ app.get("/myArticles", verifyToken, async (req, res) => {
         const { id } = req.params;
         const { userEmail } = req.body;
 
-        if (!userEmail) return res.status(400).send({ message: "userEmail required" });
-        if (req.decoded.email !== userEmail) return res.status(403).send({ message: "Forbidden access" });
+        if (!userEmail)
+          return res.status(400).send({ message: "userEmail required" });
+        if (req.decoded.email !== userEmail)
+          return res.status(403).send({ message: "Forbidden access" });
 
-        const article = await articlesCollection.findOne({ _id: new ObjectId(id) });
-        if (!article) return res.status(404).send({ message: "Article not found" });
+        const article = await articlesCollection.findOne({
+          _id: new ObjectId(id),
+        });
+        if (!article)
+          return res.status(404).send({ message: "Article not found" });
 
         const alreadyLiked = article.likes?.includes(userEmail);
         const update = alreadyLiked
@@ -191,20 +196,17 @@ app.get("/myArticles", verifyToken, async (req, res) => {
       }
     });
 
+    app.patch("/comments/:id", async (req, res) => {
+      const { id } = req.params;
+      const { comment } = req.body;
 
-    app.patch('/comments/:id', async (req, res) => {
-  const { id } = req.params;
-  const { comment } = req.body;
+      const result = await articlesCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $push: { comments: comment } }
+      );
 
-  const result = await articlesCollection.updateOne(
-    { _id: new ObjectId(id) },
-    { $push: { comments: comment } }
-  );
-
-  res.send(result);
-});
-
-
+      res.send(result);
+    });
   } finally {
     // Optional: client.close() if needed
   }
