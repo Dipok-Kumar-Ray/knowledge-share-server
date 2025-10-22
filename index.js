@@ -104,7 +104,26 @@ app.get("/articles", async (req, res) => {
     console.error("Error fetching articles:", error);
     res.status(500).send({ message: "Server error" });
   }
+
+  
 });
+app.get("/myArticles", verifyToken, async (req, res) => {
+  console.log("🔸 Request received for /myArticles");
+  console.log("🔸 Query email:", req.query.email);
+  console.log("🔸 Decoded from token:", req.decoded);
+
+  const email = req.query.email;
+  if (req.decoded.email !== email) {
+    return res.status(403).send({ message: "Forbidden access" });
+  }
+
+  const myArticles = await articlesCollection.find({ authorEmail: email }).toArray();
+  res.send(myArticles);
+});
+
+
+
+
 
 
   app.get("/myArticles", verifyToken, async (req, res) => {
@@ -115,9 +134,6 @@ app.get("/articles", async (req, res) => {
   const myArticles = await articlesCollection.find({ authorEmail: email }).toArray();
   res.send(myArticles);
 });
-
-
-
 
 
 
